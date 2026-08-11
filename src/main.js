@@ -9,5 +9,7 @@ import { eskiVeriyiSupabaseyeTasiBirKereligine } from './modules/storage.js';
    tarayıcı tarafından DOM ayrıştırıldıktan sonra, defer edilerek
    çalıştırıldığı için zamanlama garantisi birebir aynıdır. */
 wireNavigation();
-await eskiVeriyiSupabaseyeTasiBirKereligine(); // bu cihazdaki eski IndexedDB verisini bir kereliğine buluta taşı
-init();
+(async () => {
+  await eskiVeriyiSupabaseyeTasiBirKereligine(); // bu cihazdaki eski IndexedDB verisini bir kereliğine buluta taşı
+  init();
+})();
