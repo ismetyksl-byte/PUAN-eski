@@ -1,0 +1,19 @@
+{
+  "name": "puan-atolye-puantaj-defteri",
+  "private": true,
+  "version": "1.2.0",
+  "description": "Atolye Puantaj Defteri - Personel, puantaj, mesai, avans/kesinti ve bordro yonetim paneli.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5",
+    "@supabase/supabase-js": "^2.45.4"
+  },
+  "devDependencies": {
+    "vite": "^5.4.10"
+  }
+}
