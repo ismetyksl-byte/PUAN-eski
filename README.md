@@ -95,6 +95,8 @@ Bu proje Vercel'de ek bir yapılandırma gerektirmeden çalışır:
    - **Install Command:** `npm install`
 3. Ortam değişkeni gerekmiyor (şu an hiçbiri kullanılmıyor — bkz. `.env.example`).
 
+
+
 ---
 
 ## Sürüm Geçmişi
