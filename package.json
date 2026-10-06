@@ -1,8 +1,8 @@
 {
-  "name": "puan-atolye-puantaj-defteri",
+  "name": "puantaj-takip",
   "private": true,
   "version": "1.2.0",
-  "description": "Atolye Puantaj Defteri - Personel, puantaj, mesai, avans/kesinti ve bordro yonetim paneli.",
+  "description": "Puantaj Takip - Personel, puantaj, mesai, avans/kesinti ve bordro yonetim paneli.",
   "type": "module",
   "scripts": {
     "dev": "vite",

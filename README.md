@@ -1,8 +1,8 @@
-# Atölye Puantaj Defteri (PUAN)
+# Puantaj Takip
 
-Personel, puantaj, mesai, avans/kesinti ve aylık bordro yönetimi için hazırlanmış, tarayıcı içi (IndexedDB) veri saklayan bir web paneli.
+Personel, puantaj, mesai, avans/kesinti ve aylık bordro yönetimi için hazırlanmış web paneli. Veriler **Supabase** (PostgreSQL) üzerinde saklanır; böylece tarayıcı verisi silinse ya da bilgisayar değişse bile kaybolmaz.
 
-Bu proje, daha önce tek bir `.html` dosyası olarak yazılan uygulamanın **davranışı birebir korunarak**, üretim (production) kalitesinde bir **Vite + Vanilla JavaScript** projesine taşınmış halidir.
+Teknoloji: **Vite + Vanilla JavaScript**, Supabase (`@supabase/supabase-js`), Excel dışa aktarma için `xlsx`.
 
 ---
 
@@ -12,97 +12,111 @@ Bu proje, daha önce tek bir `.html` dosyası olarak yazılan uygulamanın **dav
 # 1. Bağımlılıkları yükleyin
 npm install
 
-# 2. Geliştirme sunucusunu başlatın (canlı yeniden yükleme ile)
+# 2. .env dosyasını oluşturup Supabase bilgilerini girin (aşağıya bakın)
+cp .env.example .env
+
+# 3. Geliştirme sunucusu
 npm run dev
 
-# 3. Production build alın
+# 4. Production build / önizleme
 npm run build
-
-# 4. Build'i yerel olarak önizleyin
 npm run preview
 ```
 
-`npm run dev` komutundan sonra tarayıcı otomatik olarak `http://localhost:5173` adresinde açılır.
+---
+
+## Supabase Kurulumu (ZORUNLU)
+
+Uygulama **iki ortam değişkeni olmadan veri okuyamaz/kaydedemez**:
+
+| Değişken | Nereden alınır |
+|---|---|
+| `VITE_SUPABASE_URL` | Supabase → Project Settings → API → Project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase → Project Settings → API → anon / publishable key |
+
+- **Yerelde:** `.env` dosyasına yazın (`.env` git'e girmez).
+- **Vercel'de:** Project → Settings → Environment Variables bölümüne **aynı isimlerle** ekleyin, ardından **yeniden deploy** edin. `VITE_` ile başlayan değişkenler build sırasında koda gömülür; sonradan eklenip deploy edilmezse etkisi olmaz.
+
+### Veritabanı tablosu
+
+Kod, tek bir anahtar-değer tablosu kullanır: **`kv_store`** (bkz. `src/modules/storage.js`). Kodun beklediği sütunlar:
+
+| Sütun | Tür | Not |
+|---|---|---|
+| `key` | text | birincil anahtar |
+| `value` | text | JSON metni |
+| `updated_at` | timestamptz | |
+
+Tablo üzerinde (RLS açıksa) anon rolünün **select, insert ve update** yapabilmesi gerekir; aksi halde kayıt sırasında "row-level security" hatası alınır.
+
+Saklanan anahtarlar: `employees`, `settings`, `attendance:YYYY-MM`, `overtime:YYYY-MM`, `advances:YYYY-MM`, `special:YYYY-MM`. (`__healthcheck__` anahtarı, açılışta bağlantıyı denemek için kullanılır.)
 
 ---
 
 ## Proje Yapısı
 
 ```
-PUAN/
-├── index.html                 # Tek sayfa uygulamanın HTML iskeleti
+PUANTAJ-TAKIP/
+├── index.html
 ├── package.json
 ├── vite.config.js
 ├── .env.example
-├── .gitignore
-├── public/                    # Build'e OLDUĞU GİBİ kopyalanan statik dosyalar
-│   └── favicon.svg
-├── assets/                    # Proje/marka varlıkları (kaynak SVG vb.)
-│   └── logo.svg
+├── public/favicon.svg
+├── assets/logo.svg
 └── src/
-    ├── main.js                # Giriş noktası — navigasyonu bağlar ve init() çağırır
-    ├── style.css               # Tüm CSS (orijinal <style> bloğundan taşındı)
+    ├── main.js            # Giriş noktası
+    ├── style.css          # Tüm görünüm (mavi/kart teması)
     └── modules/
-        ├── storage.js          # IndexedDB / localStorage veri katmanı
-        ├── utils.js             # toast, uid, esc (saf yardımcı fonksiyonlar)
-        ├── settings.js           # Varsayılan ayarlar + eski veri göçü (migration)
-        ├── period-utils.js        # Tarih/dönem hesaplamaları (saf fonksiyonlar)
-        ├── state.js                # Paylaşımlı uygulama durumu (tek kaynak)
-        ├── calculations.js          # Maaş/mesai/kesinti hesaplama mantığı
-        ├── render.js                  # Tüm ekranların HTML üretimi
-        ├── modals.js                   # Detay/seçim pencereleri, uzun-basma
-        └── handlers.js                  # Olay bağlama, gezinme, uygulama başlatma
+        ├── storage.js      # Supabase (kv_store) veri katmanı
+        ├── utils.js        # toast, uid, esc
+        ├── settings.js     # Varsayılan ayarlar + eski veri göçü
+        ├── period-utils.js # Tarih/dönem hesaplamaları
+        ├── state.js        # Paylaşımlı uygulama durumu
+        ├── calculations.js # Maaş/mesai/kesinti hesaplama mantığı
+        ├── render.js       # Ekranların HTML üretimi
+        ├── modals.js       # Detay/seçim pencereleri, uzun basma
+        └── handlers.js     # Olaylar, gezinme, uygulama başlatma
 ```
 
-### Neden bu şekilde bölündü?
-
-Orijinal dosyada tüm mantık tek bir `<script>` bloğu içindeydi ve paylaşılan durum (`EMP`, `SETTINGS`, `period`, `ATT`, `OT`, `ADV`, `SPECIAL`, `currentTab`, `selectedDay`, `ozetGizli`) üst seviye `let` değişkenleriydi. ES modüllerinde bir modülden dışa aktarılan bir isim başka bir modülden yeniden atanamadığı için, bu durum **tek bir `state` nesnesi** (`src/modules/state.js`) altında toplandı. Geri kalan her modül, sadece ihtiyaç duyduğu fonksiyonları `import` eder — bağımlılık yönü açık ve tek yönlüdür (yalnızca `render.js` ↔ `handlers.js` arasında, `render()`'ın `attachHandlers()`'ı çağırması nedeniyle kasıtlı bir döngüsel referans vardır; bu, ES modüllerinde güvenli bir kalıptır çünkü hiçbir fonksiyon modül yüklenirken değil, yalnızca kullanıcı etkileşimi sırasında çağrılır).
+`state.js`, paylaşılan uygulama durumunu (`EMP`, `SETTINGS`, `period`, `ATT`, `OT`, `ADV`, `SPECIAL`, `currentTab`, `selectedDay`, `ozetGizli`) tek bir nesnede toplar. `render.js` ↔ `handlers.js` arasındaki döngüsel import kasıtlıdır ve güvenlidir (fonksiyonlar modül yüklenirken değil, kullanıcı etkileşiminde çağrılır).
 
 ---
 
-## Bu Sürümde Değişen Tek Şey: Kod Organizasyonu
+## Eski Tarayıcı Verisinin Taşınması
 
-**Değişmeyenler (davranış birebir korundu):**
-- Tüm ekranlar: Aylık Özet, Puantaj, Mesailer, Avans/Kesinti, Personel Listesi, Ayarlar
-- Tüm hesaplama formülleri (maaş, mesai katsayıları, gün bazlı kesinti, ek ödeme, saat bazlı kesinti, yıllık izin sayacı)
-- Tüm görsel tasarım (CSS birebir taşındı, hiçbir kural değişmedi)
-- Tüm veri modeli ve depolama anahtarları (`employees`, `settings`, `attendance:YYYY-MM`, `overtime:YYYY-MM`, `advances:YYYY-MM`, `special:YYYY-MM`)
-- Veri bütünlüğü önlemleri (bozuk JSON ayrımı, sıralı yazma kuyruğu, sekmeler arası çakışma kontrolü)
-
-**Değişenler (sadece teknik altyapı):**
-1. **Kod, 9 ayrı modüle bölündü** (yukarıdaki proje yapısına bakın).
-2. **Excel kütüphanesi artık CDN'den değil, npm paketi olarak (`xlsx`) build'e gömülüyor.** Bunun tek pratik sonucu: Excel dışa aktarma artık **internet bağlantısı olmadan da çalışıyor** (önceki sürümde CDN'den yüklenemezse "kütüphane yüklenemedi" hatası veriyordu — bu kontrol artık gereksiz olduğu için kaldırıldı, çünkü kütüphane her zaman build'in içinde hazır bulunuyor).
-3. Google Fonts hâlâ CDN üzerinden yükleniyor (bu, orijinal davranışla aynı — internet yoksa yalnızca fontlar yedek fonta düşer, işlevsellik etkilenmez).
-
----
-
-## Veri Nerede Saklanıyor?
-
-Uygulama **Supabase veya başka bir harici veritabanı kullanmıyor.** Tüm veriler, kullanıcının tarayıcısındaki **IndexedDB**'de (desteklenmiyorsa otomatik olarak **localStorage**'da) tutulur. `.env.example` dosyasında ileride bir Supabase geçişi için rezerve edilmiş (şu an kullanılmayan) değişken adları bulunur — bunlar şu an kodun hiçbir yerinde okunmuyor.
-
-Bu, verinin **tarayıcıya/cihaza özel** olduğu, cihazlar arası otomatik senkronizasyon olmadığı anlamına gelir. Ayrıntı için `src/modules/storage.js` dosyasının başındaki yorumlara bakın.
+Uygulamanın önceki sürümü verileri tarayıcıda (IndexedDB) tutuyordu. `main.js`, açılışta bir kereliğine o eski veriyi okuyup Supabase'e **yalnızca eksik anahtarları** ekler (var olanların üzerine yazmaz) ve cihazda bir bayrak bırakır. Bu yüzden `storage.js` içinde hâlâ eski IndexedDB okuma kodu bulunur.
 
 ---
 
 ## Vercel'e Deploy
 
-Bu proje Vercel'de ek bir yapılandırma gerektirmeden çalışır:
-
-1. Depoyu Vercel'e bağlayın (veya `vercel` CLI ile `vercel --prod` çalıştırın).
-2. Vercel, `package.json` içindeki `vite` bağımlılığını otomatik tanır:
-   - **Build Command:** `npm run build` (veya boş bırakılırsa Vercel otomatik algılar)
-   - **Output Directory:** `dist`
-   - **Install Command:** `npm install`
-3. Ortam değişkeni gerekmiyor (şu an hiçbiri kullanılmıyor — bkz. `.env.example`).
-
-
+1. Depoyu Vercel'e bağlayın.
+2. Ayarlar: Build Command `npm run build`, Output Directory `dist`, Install Command `npm install`.
+3. **Environment Variables** bölümüne `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` ekleyin, deploy edin.
 
 ---
 
-## Sürüm Geçmişi
+## Sorun Giderme
 
-Ayrıntılı ve güncel değişiklik günlüğü her zaman `index.html` dosyasının `<head>` bölümündeki yorum bloğunda tutulur.
+Açılışta ekranın üstünde kırmızı bir şerit ve **"Buluta (Supabase) bağlanılamıyor… Neden: …"** yazısı çıkarsa, "Neden" kısmı sorunu gösterir:
 
-- **v1.2.0** — Vite + Vanilla JS proje yapısına geçiş (bu sürüm). Excel export artık build'e gömülü.
-- **v1.1.0** — Depolama, Claude'a özel `window.storage`'dan IndexedDB/localStorage'a taşındı.
-- **v1.0.0** — İlk kararlı tek-dosya sürüm.
+| "Neden" metni | Anlamı / çözüm |
+|---|---|
+| `Supabase bağlantı bilgileri eksik…` | Vercel/`.env` içinde iki değişken tanımlı değil. Ekleyip yeniden deploy edin. |
+| `Failed to fetch` | Ağ yok, URL yanlış ya da Supabase projesi **duraklatılmış** (ücretsiz planda bir süre kullanılmazsa olur). Supabase panelinden "Restore/Resume" edin. |
+| `row-level security…` | `kv_store` tablosunda anon rolü için select/insert/update politikası eksik. |
+| `relation "public.kv_store" does not exist` | `kv_store` tablosu oluşturulmamış. |
+| `Invalid API key` | `VITE_SUPABASE_ANON_KEY` yanlış ya da değiştirilmiş. |
+
+Şeride dokunarak kapatabilirsiniz.
+
+---
+
+## Değişiklik Geçmişi
+
+Ayrıntılı değişiklik günlüğü `index.html` dosyasının `<head>` bölümündeki yorum bloğundadır.
+
+- Tek dosyalık HTML → Vite + Vanilla JS projesine geçiş; Excel kütüphanesi build'e gömüldü.
+- Depolama tarayıcı IndexedDB'den Supabase `kv_store` tablosuna taşındı; eski veri tek seferlik göçle aktarılır.
+- Hata şeridi artık gerçek bağlantı hata nedenini gösterir.
+- Yeni tasarım: mavi vurgu, beyaz yuvarlak kartlar, ikonlu yüzen alt menü.
